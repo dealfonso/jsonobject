@@ -1,0 +1,19 @@
+{
+    "name": "ddn/jsonobject",
+    "description": "JsonObject helper class to ease dealing with json objects in PHP",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Carlos A.",
+            "email": "caralla@upv.es"
+        }
+    ],
+    "require": {
+        "php": ">=7.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "ddn\\jsonobject\\": "src/"}
+    }
+}
