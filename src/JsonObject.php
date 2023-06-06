@@ -293,11 +293,11 @@ abstract class JsonBaseObject {
      * Converts the current object to a json string
      * @param $pretty bool Whether to pretty print the json
      */
-    public function toJson(bool $pretty = false) : str {
+    public function toJson(bool $pretty = false) : string {
         if ($pretty) {
-            return json_decode($this->toObject(), JSON_PRETTY_PRINT);
+            return json_encode($this->toObject(), JSON_PRETTY_PRINT);
         } else {
-            return json_decode($this->toObject());
+            return json_encode($this->toObject());
         }
     }
 
@@ -399,7 +399,7 @@ class JsonDict extends JsonBaseObject implements \ArrayAccess, \IteratorAggregat
      * @param $type string The type of the values in the dict
      * @param $array array The array to be converted
      */
-    public static function fromArray(string $type, array $array) {
+    public static function fromArray($type, $array) {
         $class = get_called_class();
         $object = new $class($type);
         foreach ($array as $key => $value) {
