@@ -106,7 +106,7 @@
 
 namespace ddn\jsonobject;
 
-define('JSONOBJECT_VERSION', '0.1.0');
+define('JSONOBJECT_VERSION', '0.1.1');
 
 if (!defined('STRICT_TYPE_CHECKING')) {
     define('STRICT_TYPE_CHECKING', false);
