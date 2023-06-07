@@ -106,13 +106,74 @@ The possible types can be:
 - dict[type]: dictionary of objects of type _type_. The keys for each entry of the dictionary is converted to strings.
 - object: is a class name which must be a subclass of `JsonObject`.
 
-### Optional values
+### Optional and mandatory attributes
 
 When defining the name of the attributes, one can add a `?` at the end of the name to indicate that the attribute is optional. For example, the attribute name `address?` in the use-case section is optional.
  
 Each field is considered to be mandatory so that it must exist in the parsed object (or array). Moreover, the object must be of the type defined (i.e. it must be correctly parsed by the specific type). 
 
-If one of the values is null, but the field is not defined as optional (i.e. it does not contain the trailing `?` in the name), then an exception is thrown.
+### Mandatory attributes
+
+Any attribute that is not optional is considered to be madatory. This is of special interest in two points:
+
+1. when creating the object from an external structure (either using `fromArray` or `fromObject` functions).
+1. when generating the _object_ or _array_ representation of the `JsonObject`
+
+When creating the object from an external structure, the `JsonObject` will take care of every mandatory field. And if any of them is missing, an exception will raise.
+
+In the next example, an exception will raise because the mandatory field _age_ is not provided.
+
+```php
+class User extends JsonObject {
+    const ATTRIBUTES = [
+        "name" => "str",
+        "age" => "int",
+    ];
+}
+(...)
+$user = User::fromArray([ "name" => "John" ]);
+```
+
+When converting the object to an array or to an object (or getting its json representation), a mandatory field will get a default value, even if not set.
+
+So in the next example
+
+```php
+class User extends JsonObject {
+    const ATTRIBUTES = [
+        "name" => "str",
+        "age" => "int",
+        "birthDate?" => "str"
+    ];
+}
+$user = new User();
+echo((string)$user);
+```
+
+The output will be 
+
+```json
+{
+    "name": "",
+    "age": 0
+}
+```
+
+Because while attributes _name_ and _age_ are mandatory and they get their default values (i.e. 0 for numbers, empty for strings, lists or dicts), attribute _birthDate_ is not mandatory and it has not been set, yet. So it is not generated in the output.
+
+#### Setting to `null` on mandatory attributes
+
+The problem of setting values to _null_ is of special relevance when considering whether an attribute is optional or not. 
+
+One may think that, if we set a value to _null_ it would mean to _unset_ the value and so it should only be possible for optional values but not for mandatory values.
+
+In `JsonObject` we have a different concept, because setting a property to _null_ will mean "setting a value to _null_" and not unsetting the property. In order to _unset_ the property, we should use function unset or somethink like that.
+
+#### Unsetting mandatory attributes
+
+`JsonObject` also enables to _unset_ values. For an optional attribute, it means _removing the value_ and thus it will not have any value in an array representation or an object (if retrieving the value, it will be set to _null_).
+
+But for a mandatory attribute, unsetting it will mean _resetting its value to the default_. That means that it will be initialized to the default value of the type (i.e. 0 for numbers, empty for lists, strings or dicts, etc.) or its default value in the `ATTRIBUTES` constant.
  
 ### Inheritance
 
@@ -183,6 +244,7 @@ The `JsonObject` is the core class for this library. Its methods are:
 - `__get($name)` - Returns the value of the attribute with the given name
 - `__set($name, $value)` - Sets the value for the attribute with the given name
 - `__isset($name)` - Returns true if the attribute with the given name is set
+- `__unset($name)` - Unsets the value of an optional attribute (or resets the value of a mandatory attribute).
 - `toArray()` - Returns an associative array with the data of the object. The array is created recursively, visiting each of the sub-attributes for each attribute.
 - `toObject()` - Returns an object with the data of the object as attributes. The array is created recursively, visiting each of the sub-attributes for each attribute.
 - `toJson()` - Returns a json string with the representation of the object as standard object.
@@ -211,9 +273,36 @@ This object is very much the same than `JsonDict` with the exception that the in
 
 In this case, the function to append elements to the array (i.e. `[]`) is also implemented.
 
-## Default values
+## Initializing values
 
-When defining the class, it is possible to set the default values for the objects that are newly created, and to those attributes that are optional.
+When defining the class, it is possible to initialize the values for the objects that are newly created, and to those attributes that are optional.
+
+There are two ways:
+
+### Using class properties
+
+It is possible to initialize the value of an object by using the class properties, so if the value for an attribute is set in the class, it will be copied to the instance as an attribute, if it is defined.
+
+E.g.
+
+```php
+class User extends JsonObject {
+    const ATTRIBUTES = [
+        'id' => 'int',
+        'name' => 'str',
+        'age' => 'int',
+        'emails' => 'list[str]',
+        'address?' => 'Address',
+        'sex?' => 'str'
+    ];
+
+    public $sex = "not revealed";
+}
+```
+
+Now, the attribute `sex` is initialized to _not revealed_ instead of being _null_.
+
+### Using the definition of the attributes
 
 The way to make it is to define a tuple `[ <type>, <default value> ]` for the type of the object. Taking the next example:
 
@@ -231,3 +320,23 @@ class User extends JsonObject {
 ```
 
 The attribute `sex` is optional when retrieving the user data. Using this new definition for the class, if `sex` is not set, the value will be set to "not revealed" instead of `null`.
+
+An important feature is that, if the string set as _\<default value>_ corresponds to a method of the object, it will be called upon getting the value (if it has not been set, yet), and the value set for that property will be the result of the call.
+
+E.g. 
+
+```php
+class User extends JsonObject {
+    const ATTRIBUTE = [
+        ...
+        'birthDay?' => [ 'str', 'computeBirthDate' ]
+    ]
+    function computeBirthDate() {
+        $now = new DateTime();
+        $now->sub(DateInterval::createFromDateString("{$this->age} years"));
+        return $now->format("Y-m-d");
+    }
+}
+```
+
+In this example, if we had not set the `birthDate` property but it is retrieved, it will be computed by subtracting the age to the current date.

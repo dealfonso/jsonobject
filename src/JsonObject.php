@@ -488,7 +488,7 @@ class JsonObject extends JsonBaseObject {
 
     // This array stores the definition of the attributes for each class that descends from JsonObject. Specifically it stores
     //   whether the attributes are mandatory or not, the type, and subtype, and the default value (if set)
-    private static $_attributeDefinition = [];
+    protected static $_attributeDefinition = [];
 
     public function __construct(...$args) {
         // PHP 8 allows for named arguments, so we need to check for that...
@@ -720,6 +720,41 @@ class JsonObject extends JsonBaseObject {
     }
 
     /**
+     * Checks if an attribute is set
+     * @param string $name The name of the attribute
+     * @return bool True if the attribute is set, false otherwise
+     * @throws \InvalidArgumentException If the attribute is not defined for the object
+     */
+    public function __isset($name) {
+        if (method_exists($this, $name)) {
+            return true;
+        }
+        if (!isset(static::$_attributeDefinition[static::class][$name])) {
+            throw new \InvalidArgumentException("Unknown attribute $name in class " . get_called_class());
+        }
+        // If mandatory, the attribute is always set because it has a default value
+        if (static::$_attributeDefinition[static::class][$name]['mandatory']) {
+            return true;
+        }
+        // Otherwise, we check if the attribute is set
+        return array_key_exists($name, $this->_attributeValue);
+    }
+
+    /**
+     * Unsets an attribute
+     * @param string $name The name of the attribute
+     * @throws \InvalidArgumentException If the attribute is not defined for the object
+     */
+    public function __unset($name) {
+        if (!isset(static::$_attributeDefinition[static::class][$name])) {
+            throw new \InvalidArgumentException("Unknown attribute $name in class " . get_called_class());
+        }
+        if (array_key_exists($name, $this->_attributeValue)) {
+            unset($this->_attributeValue[$name]);
+        }
+    }
+
+    /**
      * Creates an object from an associative array where the keys are the name of the attributes and the values are
      *   the values of these attributes.
      * This function takes into account the definition of the parameters; so the values must take into account the type
@@ -774,6 +809,10 @@ class JsonObject extends JsonBaseObject {
     public function toArray() : array {
         $array = array();
         foreach (static::$_attributeDefinition[static::class] as $attribute => $definition) {
+            // TODO: remove
+            if (!isset($this->$attribute)) {
+                continue;
+            }
             $array[$attribute] = self::convert_typed_value_array(static::$_attributeDefinition[static::class][$attribute]['type'], $this->$attribute);
         }
         return $array;
@@ -785,6 +824,10 @@ class JsonObject extends JsonBaseObject {
     public function toObject() :  \stdClass | array {
         $obj = new \stdClass();
         foreach (static::$_attributeDefinition[static::class] as $attribute => $definition) {
+            // TODO: remove
+            if (!isset($this->$attribute)) {
+                continue;
+            }
             $obj->$attribute = self::convert_typed_value_object(static::$_attributeDefinition[static::class][$attribute]['type'], $this->$attribute);
         }
         return $obj;
