@@ -106,10 +106,14 @@
 
 namespace ddn\jsonobject;
 
-define('JSONOBJECT_VERSION', '0.1.1');
+define('JSONOBJECT_VERSION', '0.2.0');
 
 if (!defined('STRICT_TYPE_CHECKING')) {
     define('STRICT_TYPE_CHECKING', false);
+}
+
+if (!defined('STRICT_TYPE_CHECKING_EMPTY_ZERO')) {
+    define('STRICT_TYPE_CHECKING_EMPTY_ZERO', true);
 }
 
 if (!defined('JSONOBJECT_DEBUGGING')) {
@@ -150,7 +154,7 @@ abstract class JsonBaseObject {
      * @param $value mixed The value to be parsed
      * @param $subtype string | null The type of the elements if type is list or dict
      */
-    protected static function parse_typed_value($type, $value, $subtype = null) {
+    public static function parse_typed_value($type, $value, $subtype = null) {
         if ($value === null) {
             return null;
         }
@@ -338,10 +342,11 @@ class JsonDict extends JsonBaseObject implements \ArrayAccess, \IteratorAggregat
     /**
      * Function that is used to validate that the offset has the proper type
      */
-    protected function _validateOffset(mixed $offset): void {
+    protected function _validateOffset(mixed $offset): mixed {
         if (gettype($offset) != 'string') {
             throw new \TypeError(sprintf('Offset must be of type string, %s given', gettype($offset)));
         }
+        return $offset;
     }
 
     /**
@@ -355,23 +360,21 @@ class JsonDict extends JsonBaseObject implements \ArrayAccess, \IteratorAggregat
      * Returns true if the given offset has a value
      */
     public function offsetExists(mixed $offset) : bool {
-        $this->_validateOffset($offset);
-        return array_key_exists($offset, $this->values);
+        return array_key_exists($this->_validateOffset($offset), $this->values);
     }
 
     /**
      * Returns the value at the given offset
      */
     public function offsetGet(mixed $offset) : mixed {
-        $this->_validateOffset($offset);
-        return $this->values[$offset];
+        return $this->values[$this->_validateOffset($offset)];
     }
 
     /**
      * Sets the value at the given offset
      */
     public function offsetSet(mixed $offset, mixed $value) : void {
-        $this->_validateOffset($offset);
+        $offset = $this->_validateOffset($offset);
         if ($offset === null) {
             $this->values[] = $value;
             return;
@@ -383,8 +386,7 @@ class JsonDict extends JsonBaseObject implements \ArrayAccess, \IteratorAggregat
      * Removes the value at the given offset
      */
     public function offsetUnset(mixed $offset) : void {
-        $this->_validateOffset($offset);
-        unset($this->values[$offset]);
+        unset($this->values[$this->_validateOffset($offset)]);
     }
 
     /**
@@ -444,6 +446,20 @@ class JsonDict extends JsonBaseObject implements \ArrayAccess, \IteratorAggregat
     public function values() : array {
         return array_values($this->values);
     }
+
+    /**
+     * Filters the dictionary
+     */
+    public function filter(callable $callback) : JsonDict {
+        $class = get_called_class();
+        $object = new $class($this->type);
+        foreach ($this->values as $key => $value) {
+            if ($callback($value, $key)) {
+                $object[$key] = $value;
+            }
+        }
+        return $object;
+    }
 }
 
 class JsonList extends JsonDict {
@@ -451,10 +467,14 @@ class JsonList extends JsonDict {
      * Validates that the offset is an integer
      * @param $offset mixed The offset to be validated
      */
-    protected function _validateOffset(mixed $offset): void {
+    protected function _validateOffset(mixed $offset): mixed {
         if (!is_int($offset)) {
             throw new \TypeError("Array keys must be integers");
         }
+        if ($offset < 0) {
+            $offset = count($this->values) + $offset;
+        }
+        return $offset;
     }
 
     /**
@@ -476,6 +496,35 @@ class JsonList extends JsonDict {
             $offset = count($this->values);
         }
         parent::offsetSet($offset, $value);
+    }
+
+    /**
+     * Filters the list
+     */
+    public function filter(callable $callback) : JsonList {
+        $class = get_called_class();
+        $object = new $class($this->type);
+        foreach ($this->values as $key => $value) {
+            if ($callback($value, $key)) {
+                $object[] = $value;
+            }
+        }
+        return $object;
+    }
+
+    /**
+     * Sorts the list
+     */
+    public function sort(callable $callback = null) : JsonList {
+        $class = get_called_class();
+        $object = new $class($this->type);
+        $object->values = $this->values;
+        if ($callback === null) {
+            sort($object->values);
+        } else {
+            usort($object->values, $callback);
+        }
+        return $object;
     }
 }
 
@@ -598,7 +647,7 @@ class JsonObject extends JsonBaseObject {
                 // We'll convert the value to the correct type
                 $value = $this->$name;
                 unset($this->$name);
-                $this->$name = self::parse_typed_value($definition['type'], $value);
+                $this->$name = self::parse_typed_value($definition['type'], $value, $definition['subtype']);
             } else {
                 // If there is a default value, we'll use it
                 if ($definition['default'] !== null) {
@@ -656,6 +705,9 @@ class JsonObject extends JsonBaseObject {
                 if ((!STRICT_TYPE_CHECKING) && is_numeric($value)) {
                     $value = intval($value);
                 }
+                if ((STRICT_TYPE_CHECKING_EMPTY_ZERO) && ($value === "")) {
+                    $value = 0;
+                }
                 if (!is_int($value)) {
                     throw new \InvalidArgumentException("Attribute $name must be an int");
                 }
@@ -663,6 +715,9 @@ class JsonObject extends JsonBaseObject {
             case 'float':
                 if ((!STRICT_TYPE_CHECKING) && is_numeric($value)) {
                     $value = floatval($value);
+                }
+                if ((STRICT_TYPE_CHECKING_EMPTY_ZERO) && ($value === "")) {
+                    $value = 0;
                 }
                 if (!is_float($value) && !is_int($value)) {
                     throw new \InvalidArgumentException("Attribute $name must be a float");
@@ -678,6 +733,9 @@ class JsonObject extends JsonBaseObject {
                 }
                 break;
             case 'bool':
+                if ((STRICT_TYPE_CHECKING_EMPTY_ZERO) && ($value === "")) {
+                    $value = false;
+                }
                 $value = (bool)($value == 0 ? false : true);
                 break;
             case 'list':

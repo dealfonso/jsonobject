@@ -340,3 +340,36 @@ class User extends JsonObject {
 ```
 
 In this example, if we had not set the `birthDate` property but it is retrieved, it will be computed by subtracting the age to the current date.
+
+## Additional tools and technical facts
+
+### Parsing a value
+
+If wanted to parse an arbitrary object to a `JsonObject`, it is possible to use the function `JsonObject::parse_typed_value`. This is important to be able to convert from any type to a `JsonObject`-type.
+
+e.g.
+
+```php
+$myobject = JsonObject::parse_typed_value("list[str]", [ "my", "name", "is", "John" ]);
+```
+
+Will obtain an object of type `JsonList<str>`.
+
+### Type checking
+
+The default behavior of this library is to ensure that the values set for the attributes match their defined type. But that means that would mean that, as a `float` is not an `int`, setting a float to `0` will fail because `0` is an integer. In that case, the user _must_ cast the values before assigning them. To control whether to so stritcly check the type or not, it is possible to use the constant `STRICT_TYPE_CHECKING`.
+
+> If `STRICT_TYPE_CHECKING` it is set to `True`, the types will be strictly checked and e.g. assigning `9.3` to an `int` will raise an exception. If set to `False`, the numerical types will be converted from one to each other. So e.g. if we assign `9.3` to an `int` it will be automatically truncated to `9`.
+
+Other important type checking is when assigning an empty value (i.e. `""` or `null`) to a numeric type. In that case, we have the constant `STRICT_TYPE_CHECKING_EMPTY_ZERO`.
+
+> If `STRICT_TYPE_CHECKING_EMPTY_ZERO` is set to `True` (the default behavior), when assigning an empty value to a numeric type, it will be considered to be `0`. i.e. assigning an empty string or a `null` value to an `int` attribute, will mean to assign `0`. If set to `False`, the library will check the types and will eventually raise an exception.
+
+### Enhanced JsonLists
+
+Now `JsonList` also enables to use negative indexes, so that `-1` will be the last element, `-2` the penultimate, etc.
+
+`JsonList` object includes functions for sorting or filtering.
+
+- `public function sort(callable $callback = null) : JsonList`: sorts the list using the given callback. If no callback is given, it will sort the list using the default comparison function.
+- `public function filter(callable $callback) : JsonList`: filters the list using the given callback. The callback must return a boolean value. If the callback returns `true`, the element will be included in the resulting list. If it returns `false`, the element will be discarded.
