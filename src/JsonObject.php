@@ -30,7 +30,7 @@
  * The types can be:
  *  - int
  *  - float
- *  - str
+ *  - string
  *  - bool
  *  - list[type]
  *  - dict[type]
@@ -43,9 +43,9 @@
  * class User extends JsonObject {
  *    const ATTRIBUTES = [
  *      'id' => 'int',
- *      'name' => 'str',
+ *      'name' => 'string',
  *      'age' => 'int',
- *      'emails' => 'list[str]',
+ *      'emails' => 'list[string]',
  *      'address?' => 'Address',
  *    ];
  * 
@@ -56,10 +56,10 @@
  * 
  * class Address extends JsonObject {
  *   const ATTRIBUTES = [
- *    'street' => 'str',
+ *    'street' => 'string',
  *    'number' => 'int',
- *    'city' => 'str',
- *    'country' => 'str',
+ *    'city' => 'string',
+ *    'country' => 'string',
  *   ];
  * }
  * 
@@ -68,7 +68,7 @@
  * 
  * class UserWithPhone extends User {
  *   const ATTRIBUTES = [
- *      'phone' => 'str',
+ *      'phone' => 'string',
  *  ];
  * }
  * 
@@ -106,7 +106,7 @@
 
 namespace ddn\jsonobject;
 
-define('JSONOBJECT_VERSION', '0.2.0');
+define('JSONOBJECT_VERSION', '0.2.1');
 
 if (!defined('STRICT_TYPE_CHECKING')) {
     define('STRICT_TYPE_CHECKING', false);
@@ -154,7 +154,7 @@ abstract class JsonBaseObject {
      * @param $value mixed The value to be parsed
      * @param $subtype string | null The type of the elements if type is list or dict
      */
-    public static function parse_typed_value($type, $value, $subtype = null) {
+    public static function parse_typed_value($type, $value, $subtype) {
         if ($value === null) {
             return null;
         }
@@ -168,7 +168,7 @@ abstract class JsonBaseObject {
             $type = 'list';
         }
         switch ($type) {
-            case 'str':
+            case 'string':
                 try {
                     return (string)$value;
                 } catch (\Exception $e) {
@@ -255,7 +255,7 @@ abstract class JsonBaseObject {
             $type = 'list';
         }
         switch ($type) {
-            case 'str':
+            case 'string':
                 return $value;
             case 'bool':
                 return (bool)$value;
@@ -275,9 +275,9 @@ abstract class JsonBaseObject {
      * @param $type string The type of the value
      * @param $subtype string | null The type of the elements if type is list or dict
      */
-    protected static function default_value($type, $subtype = null) {
+    protected static function default_value($type, $subtype) {
         switch ($type) {
-            case 'str':
+            case 'string':
                 return '';
             case 'bool':
                 return false;
@@ -405,7 +405,7 @@ class JsonDict extends JsonBaseObject implements \ArrayAccess, \IteratorAggregat
         $class = get_called_class();
         $object = new $class($type);
         foreach ($array as $key => $value) {
-            $object[$key] = self::parse_typed_value($type, $value);
+            $object[$key] = self::parse_typed_value($type, $value, null);
         }
         return $object;
     }
@@ -515,7 +515,7 @@ class JsonList extends JsonDict {
     /**
      * Sorts the list
      */
-    public function sort(callable $callback = null) : JsonList {
+    public function sort(?callable $callback = null) : JsonList {
         $class = get_called_class();
         $object = new $class($this->type);
         $object->values = $this->values;
@@ -656,12 +656,12 @@ class JsonObject extends JsonBaseObject {
                         $defaultValue = $defaultValue();
                     } else {
                         if (is_string($defaultValue)) {
-                            if (isset($this->$defaultValue) && is_callable($this->$defaultValue)) {
+                            if ($this->_hasArgument($defaultValue) && isset($this->$defaultValue) && is_callable($this->$defaultValue)) {
                                 $defaultValue = $this->$defaultValue();
                             }
                         }
                     }
-                    $this->$name = self::parse_typed_value($definition['type'], $defaultValue);
+                    $this->$name = self::parse_typed_value($definition['type'], $defaultValue, $definition['subtype']);
                 }
             }
         }
@@ -682,9 +682,11 @@ class JsonObject extends JsonBaseObject {
         // If a value is requested, and it is not set, we'll set it to the default value
         if (!array_key_exists($name, $this->_attributeValue)) {
             if (static::$_attributeDefinition[static::class][$name]['mandatory']) {
-                $this->_attributeValue[$name] = self::default_value(static::$_attributeDefinition[static::class][$name]['type']);
+                $this->_attributeValue[$name] = self::default_value(static::$_attributeDefinition[static::class][$name]['type'], static::$_attributeDefinition[static::class][$name]['subtype']);
             } else {
-                $this->_attributeValue[$name] = null;
+                // We are not setting the value of the attribute because it is not mandatory and it is not set... So it should continue to be unset
+                // $this->_attributeValue[$name] = null;
+                return null;
             }
         }
         // Return the value for the attribute
@@ -724,7 +726,7 @@ class JsonObject extends JsonBaseObject {
                 }
                 $value = (float)$value;
                 break;
-            case 'str':
+            case 'string':
                 if ((!STRICT_TYPE_CHECKING) && is_numeric($value) && (!is_string($value))) {
                     $value = strval($value);
                 }
@@ -812,6 +814,10 @@ class JsonObject extends JsonBaseObject {
         }
     }
 
+    protected function _hasArgument($name) {
+        return isset(static::$_attributeDefinition[static::class][$name]);
+    }
+
     /**
      * Creates an object from an associative array where the keys are the name of the attributes and the values are
      *   the values of these attributes.
@@ -844,7 +850,7 @@ class JsonObject extends JsonBaseObject {
                 continue;
             }
             if ($definition['subtype'] === null) {
-                $object->$attribute = self::parse_typed_value($definition['type'], $array[$attribute]);
+                $object->$attribute = self::parse_typed_value($definition['type'], $array[$attribute], null);
             } else {
                 $object->$attribute = self::parse_typed_value($definition['type'], $array[$attribute], $definition['subtype']);
             }

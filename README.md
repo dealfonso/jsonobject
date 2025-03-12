@@ -39,19 +39,19 @@ Using `JsonObject`, I will be able to define my data model using the following c
 class User extends JsonObject {
     const ATTRIBUTES = [
         'id' => 'int',
-        'name' => 'str',
+        'name' => 'string',
         'age' => 'int',
-        'emails' => 'list[str]',
+        'emails' => 'list[string]',
         'address?' => 'Address',
     ];
 }
 
 class Address extends JsonObject {
     const ATTRIBUTES = [
-        'street' => 'str',
+        'street' => 'string',
         'number' => 'int',
-        'city' => 'str',
-        'country' => 'str',
+        'city' => 'string',
+        'country' => 'string',
     ];
 }
 ```
@@ -74,9 +74,9 @@ The classes defined can also have methods that will make it easier to implement 
 class User extends JsonObject {
     const ATTRIBUTES = [
         'id' => 'int',
-        'name' => 'str',
+        'name' => 'string',
         'age' => 'int',
-        'emails' => 'list[str]',
+        'emails' => 'list[string]',
         'address?' => 'Address',
     ];
     public function isAdult() {
@@ -100,7 +100,7 @@ The `ATTRIBUTES` constant is an associative array where the keys are the _name f
 The possible types can be:
 - int: int number
 - float: floating point number
-- str: string
+- string: string
 - bool: boolean
 - list[type]: list of objects of type _type_.
 - dict[type]: dictionary of objects of type _type_. The keys for each entry of the dictionary is converted to strings.
@@ -126,7 +126,7 @@ In the next example, an exception will raise because the mandatory field _age_ i
 ```php
 class User extends JsonObject {
     const ATTRIBUTES = [
-        "name" => "str",
+        "name" => "string",
         "age" => "int",
     ];
 }
@@ -141,9 +141,9 @@ So in the next example
 ```php
 class User extends JsonObject {
     const ATTRIBUTES = [
-        "name" => "str",
+        "name" => "string",
         "age" => "int",
-        "birthDate?" => "str"
+        "birthDate?" => "string"
     ];
 }
 $user = new User();
@@ -182,8 +182,8 @@ But for a mandatory attribute, unsetting it will mean _resetting its value to th
 ```php
 class Vehicle extends JsonObject {
     const ATTRIBUTES = [
-        "brand" => "str",
-        "color" => "str"
+        "brand" => "string",
+        "color" => "string"
     ]
 }
 class Car extends Vehicle {
@@ -289,11 +289,11 @@ E.g.
 class User extends JsonObject {
     const ATTRIBUTES = [
         'id' => 'int',
-        'name' => 'str',
+        'name' => 'string',
         'age' => 'int',
-        'emails' => 'list[str]',
+        'emails' => 'list[string]',
         'address?' => 'Address',
-        'sex?' => 'str'
+        'sex?' => 'string'
     ];
 
     public $sex = "not revealed";
@@ -310,11 +310,11 @@ The way to make it is to define a tuple `[ <type>, <default value> ]` for the ty
 class User extends JsonObject {
     const ATTRIBUTES = [
         'id' => 'int',
-        'name' => 'str',
+        'name' => 'string',
         'age' => 'int',
-        'emails' => 'list[str]',
+        'emails' => 'list[string]',
         'address?' => 'Address',
-        'sex?' => [ 'str', 'not revealed' ]
+        'sex?' => [ 'string', 'not revealed' ]
     ];
 }
 ```
@@ -329,7 +329,7 @@ E.g.
 class User extends JsonObject {
     const ATTRIBUTE = [
         ...
-        'birthDay?' => [ 'str', 'computeBirthDate' ]
+        'birthDay?' => [ 'string', 'computeBirthDate' ]
     ]
     function computeBirthDate() {
         $now = new DateTime();
@@ -350,10 +350,10 @@ If wanted to parse an arbitrary object to a `JsonObject`, it is possible to use 
 e.g.
 
 ```php
-$myobject = JsonObject::parse_typed_value("list[str]", [ "my", "name", "is", "John" ]);
+$myobject = JsonObject::parse_typed_value("list[string]", [ "my", "name", "is", "John" ]);
 ```
 
-Will obtain an object of type `JsonList<str>`.
+Will obtain an object of type `JsonList<string>`.
 
 ### Type checking
 
