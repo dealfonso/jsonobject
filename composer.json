@@ -1,6 +1,6 @@
 {
-    "name": "ddn/jsonobject",
-    "description": "JsonObject helper class to ease dealing with json objects in PHP",
+    "name": "ddn/typedobject",
+    "description": "TypedObject is a helper class to ease dealing with json objects in PHP",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -14,6 +14,6 @@
     },
     "autoload": {
         "psr-4": {
-            "ddn\\jsonobject\\": "src/"}
+            "ddn\\typedobject\\": "src/"}
     }
 }
