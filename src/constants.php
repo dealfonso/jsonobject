@@ -6,8 +6,8 @@ require_once("functions.php");
 /**
  * The version of the library
  */
-define('TYPEDOBJECT_VERSION', '0.3.0');
-ns_constant('TYPEDOBJECT_VERSION', '0.3.0');
+define('TYPEDOBJECT_VERSION', '0.3.1');
+ns_constant('TYPEDOBJECT_VERSION', '0.3.1');
 
 /**
  * If STRICT_TYPE_CHECKING is set to true, we'll check that the type of the value is the expected one when setting the value of an attribute.

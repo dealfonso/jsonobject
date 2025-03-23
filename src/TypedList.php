@@ -29,11 +29,11 @@ class TypedList extends TypedDict {
 
     /**
      * Converts the array to an object
-     * @return \stdClass The object representation of the array
+     * @return array an array with the values of the list, to be included in the object
      */
-    public function toObject() : \stdClass {
+    public function toObject() : array {
         $type = $this->type;
-        return (object) [ ...array_map(function ($x) use ($type) { 
+        return [ ...array_map(function ($x) use ($type) { 
             return $type->convert_object($x); 
         }, $this->values) ];
     }
@@ -153,6 +153,33 @@ class TypedList extends TypedDict {
             sort($object->values);
         } else {
             usort($object->values, $callback);
+        }
+        return $object;
+    }
+
+    /**
+     * Reverses the list
+     * @return TypedList The reversed list
+     */
+    public function reverse() : TypedList {
+        $class = get_called_class();
+        $object = new $class($this->type);
+        $object->values = array_reverse($this->values);
+        return $object;
+    }
+
+    /**
+     * Creates a list from an array
+     * @param $type TypeDefinition The type of the list
+     * @param $array array The array to be converted to a list
+     * @return TypedList The list created from the array
+     */
+    public static function fromArray(TypeDefinition $type, $array) : TypedList {
+        // This is to enable the inheritance of the class
+        $class = get_called_class();
+        $object = new $class($type);
+        foreach ($array as $value) {
+            $object[] = $type->parse_value($value);
         }
         return $object;
     }

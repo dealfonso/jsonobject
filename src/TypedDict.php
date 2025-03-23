@@ -104,7 +104,7 @@ class TypedDict extends BaseTypedObject implements \ArrayAccess, \IteratorAggreg
      * @param $type string The type of the values in the dict
      * @param $array array The array to be converted
      */
-    public static function fromArray(TypeDefinition $type, $array) {
+    public static function fromArray(TypeDefinition $type, $array) : TypedDict {
         // This is to enable the inheritance of the class (i.e. to enable TypedList::fromArray and create a TypedList object)
         $class = get_called_class();
         $object = new $class($type);
@@ -141,7 +141,7 @@ class TypedDict extends BaseTypedObject implements \ArrayAccess, \IteratorAggreg
      *  and the values are the values of the properties
      * @return \stdClass The dictionary as an object
      */
-    public function toObject() : \stdClass {
+    public function toObject() {
         $array = array();
         foreach ($this->values as $key => $value) {
             $array[$key] = $this->type->convert_object($value);
