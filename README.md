@@ -1,6 +1,12 @@
 # `TypedObject`
 
-`TypedObject` is a PHP class to ease the usage of objects coming from a JSON definition. The idea comes from using `pydantic` in python, and its ability to parse and validate json data into objects, and the new type hinting in PHP.
+`TypedObject` is a PHP class that enables to parse JSON objects into PHP objects, and later getting them back into JSON objects.
+
+At the end, this library can be used as a DTO (Data Transfer Object) backend for PHP. It is possible to define the types for the attributes of the objects, and the `TypedObject` base class will parse the JSON objects into the PHP objects, and will take care of checking the types of the attributes, or and/or converting them into the appropriate types when setting their values.
+
+In this way, it makes it easier to implement the data model of the application, and to deal with the data that comes from other layers, such a REST API.
+
+> The library also includes the classes `TypedDict` and `TypedList` that are used to deal with dictionaries and lists, respectively. These classes are used by `TypedObject` to manage the attributes that are defined as dictionaries or lists, but they can be used independently.
 
 ## Why `TypedObject`
 
@@ -10,6 +16,8 @@ The workflow is
 1. retrieve a JSON object definition
 1. use `TypedObject` to parse the JSON definition
 1. use the resulting objects in the application
+1. get the JSON definition back
+1. send the JSON definition to the API
 
 ## Use case
 
@@ -68,6 +76,40 @@ The `TypedObject` class will carry out with parsing the content into objects, an
 echo($user->name);
 ```
 
+During the usage of the objects, the library will take care of checking the types of the attributes, and will convert the values into the expected types. So that we can use the objects without worrying about the types of the attributes.
+
+e.g.
+
+```php
+$user->age = 50;
+$user->emails = [ "not@proceed.ing", "valid.email" ];
+$user->address = [ 'street' => "My other street", 'number' => 10, 'city' => "Valencia", 'country' => "Spain" ];
+```
+
+And the result will be:
+
+```json
+{
+    "id": 0,
+    "name": "John Doe",
+    "age": 50,
+    "emails": [
+        "not@proceed.ing",
+        "valid.email"
+    ],
+    "address": {
+        "street": "My other street",
+        "number": 10,
+        "city": "Valencia",
+        "country": "Spain"
+    }
+}
+```
+
+> In this case, the library will convert the PHP list of emails into a `TypedList` object, and the PHP array of the address into an `Address` object without the intervention of the user. But also verifies that the age is an integer, and that the emails are strings, and the attributes in the address are those expected.
+
+### Extending the data model
+
 The classes can also have methods that will make it easier to implement the application's data model. E.g. it would possible to define the class `User` like this:
 
 ```php
@@ -82,6 +124,47 @@ class User extends TypedObject {
     public function isAdult() {
         return $this->age >= 18;
     }
+    public function addEmail($email) {
+        $this->emails[] = $email;
+    }
+    public function setAddress($street, $number, $city, $country) {
+        $this->address = new Address(street: $street, number: $number, city: $city, country: $country);
+    }
+}
+```
+
+The methods that use the attributes of the object will also be subject to the type checking, so that the values will be converted to the expected types. In this sense, the implementation is also type-safe.
+
+## Features of `TypedObject`
+
+1. **Type checking**: The attributes of the objects are typed, so that the library will check the types of the attributes when setting their values. If the value does not match the type, an exception will be raised. That means that the **types of the attributes of an object will be those that are expected** to be without the need to check them.
+1. **Default values**: It is possible to set default values for the attributes, so that if the data comes from the API without some attributes, they will be initialized with the default values. This feature enables a more flexible way to **upgrade the data model of the application**, and keep the compatibility with the previous versions of the API.
+1. **Nullable attributes**: It is possible to define attributes as nullable. That means that they can be set to `null`, but it also enables **more control over the values of the attributes**, as they can be set to `null` only if they are defined as nullable.
+1. **Type conversion**: The library will convert the values to the expected types, even if they are not strictly the same type. This feature enables a more flexible way to deal with the data, as **the values will be converted to the expected types**.
+1. **Inheritance**: The objects can inherit attributes from their parent classes. That means that the attributes of the parent class will be available in the child class. This feature enables a more **flexible way to define the data model** of the application.
+
+## Installing
+
+The library can be installed using composer:
+
+```bash
+composer require ddn/typedobject
+```
+
+And then it can be included in the PHP script:
+
+```php
+use ddn\typedobject\TypedObject;
+
+include('vendor/autoload.php');
+
+// The code goes here
+class User extends TypedObject {
+    const ATTRIBUTES = [
+        'id' => 'int',
+        'name' => 'string',
+        ...
+    ];
 }
 ```
 
