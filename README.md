@@ -108,6 +108,34 @@ And the result will be:
 
 > In this case, the library will convert the PHP list of emails into a `TypedList` object, and the PHP array of the address into an `Address` object without the intervention of the user. But also verifies that the age is an integer, and that the emails are strings, and the attributes in the address are those expected.
 
+And even simpler, if we use the `TypedObjectSimple` class, we can define the classes like this:
+
+```php
+class Address extends TypedObjectSimple {
+    public string $street;
+    public int $number;
+    public string $city;
+    public string $country;
+}
+class User extends TypedObjectSimple {
+    public int $id;
+    public string $name;
+    public int $age;
+    public array $emails;
+    public ?Address $address;
+}
+```
+
+And we will be able to parse the JSON object in the same way:
+
+```php
+$user = User::fromObject(json_decode($json_text_definition));
+```
+
+... the rest of the example will work the same way.
+
+> The `TypedObjectSimple` class is a simpler version of the `TypedObject` class, that uses the PHP 7.4 typed attributes to define the attributes of the class. It is simpler to use, but it has some limitations and lack of expressiveness when defining the data model.
+
 ### Extending the data model
 
 The classes can also have methods that will make it easier to implement the application's data model. E.g. it would possible to define the class `User` like this:
@@ -188,7 +216,7 @@ The possible types can be:
 - list[type]: list of objects of type _type_.
 - dict[type]: dictionary of objects of type _type_. The keys for each entry of the dictionary is converted to strings.
 - object: is a class name which must be a subclass of `TypedObject`.
-- dynamic: any type is allowed for the attribute. This includes _null_ values. When using this type, if assigned an array or an object, it will be converted to a `TypedArray` or a `TypedObject` object, respectively.
+- mixed: any type is allowed for the attribute. This includes _null_ values. When using this type, if assigned an array or an object, it will be converted to a `TypedArray` or a `TypedObject` object, respectively.
 
 e.g.
 
@@ -220,7 +248,7 @@ $user = new User(id: 0, name: "John Doe", age: 42, emails: [], address: null);  
 $user = new User([ "id" => 0, "name" => "John Doe", "age" => 42, "emails" => [], "address" => null ]);  // PHP 7
 ```
 
-Alternatively, it is possible to not to specify the type for any of the attributes. In that case, the attribute will be considered to be of type `dynamic`.
+Alternatively, it is possible to not to specify the type for any of the attributes. In that case, the attribute will be considered to be of type `mixed`.
 
 e.g.
 
@@ -235,6 +263,63 @@ class User extends TypedObject {
     ];
 }
 ```
+
+### Using typed attributes and the `TypedObjectSimple` class
+
+The preferred method to use the `TypedObject` library is by using the `TypedObject` class, and defining the data model using the constant `ATTRIBUTES`, and then do not define the attributes in the class definition (or at least do not define them as PHP 7.4 typed attributes) and let the library to take care of them.
+
+But there is also a simpler version of the class, the `TypedObjectSimple` class, that avoids the use of the `ATTRIBUTES` constant, and uses the PHP 7.4 typed attributes to define the attributes of the class.
+
+e.g. 
+
+```php
+class Address extends TypedObjectSimple {
+    public string $street;
+    public int $number;
+    public string $city;
+    public string $country;
+}
+class User extends TypedObjectSimple {
+    public int $id;
+    public string $name;
+    public int $age;
+    public array $emails;
+    public ?Address $address;
+}
+```
+
+In this case, if we have the a JSON fragment that accomplishes the data model, we can use the following code to get an instance of the `User` class:
+
+```php
+$json_text_definition = '{
+    "id": 0,
+    "name": "John Doe",
+    "age": 42,
+    "emails": [],
+    "address": {
+        "street": "My street",
+        "number": 40,
+        "city": "Valencia",
+        "country": "Spain"
+    }
+}';
+$user = User::fromObject(json_decode($json_text_definition));
+```
+
+The only advise is that **every public attribute in the class is considered to be part of the data model**, and so it will be parsed when creating the object. So, if the class has attributes that are not part of the data model, they must be defined as private or protected.
+
+#### Notes on `TypedObjectSimple`
+
+This class is simpler to use, but it has some limitations:
+- It does not support the definition of default values for the attributes.
+- It lacks of expressiveness when defining the data model, as it does not support the definition of the types for lists and dictionaries (e.g. `list[string]` or `dict[Address]`).
+- The `array` type is different from a `list[mixed]` attribute so it does not have all of the features of `TypedList`.
+
+  - When retrieving the arrays, the library will make its best by visiting each element in the array to try to convert the objects that are derived from `TypedObject`. But we cannot guarantee that the values in the array are properly serialized, in particular, when converting the object back to a JSON object.
+  - The type of the values is not controlled by the library, and so some features such as type checking or type conversion will not be available for them. 
+  - The contents of the array are not controlled by the library, so it may contain any type of value that maybe is not properly converted when building the JSON object. 
+
+Anyway, if your data model is simple and you do not need to define the types for the values of `lists` or `dicts`, the `TypedObjectSimple` class may be a good choice.
 
 ### Default values for the attributes
 
@@ -284,7 +369,8 @@ If wanted to control this behavior, we can use the constant `ddn\typedobject\USE
 - list[type]: []
 - dict[type]: []
 - object: null
-- dynamic: null
+- mixed: null
+- array: [] (only available for `TypedObjectSimple`)
 
 > The default value for `ddn\typedobject\USE_DEFAULT_VALUES` is `false`, so the uninitialized attributes will not have a default value.
 
@@ -509,7 +595,6 @@ The `TypedObject` is the core class for this library. Its methods are:
 - `__set($name, $value)` - Sets the value for the attribute with the given name
 - `__isset($name)` - Returns true if the attribute with the given name is set
 - `__unset($name)` - Unsets the value of an optional attribute (or resets the value of a mandatory attribute).
-- `toArray()` - Returns an associative array with the data of the object. The array is created recursively, visiting each of the sub-attributes for each attribute.
 - `toObject()` - Returns an object with the data of the object as attributes. The array is created recursively, visiting each of the sub-attributes for each attribute.
 - `toJson()` - Returns a json string with the representation of the object as standard object.
 - `::fromArray($data)` - Creates an object, by parsing the given associative array into the attributes defined in the class. Each of the attributes is recursively parsed, according to the type defined to it.
@@ -549,7 +634,6 @@ $dict["key2"] = 2;
 ```
 
 The methods are:
-- `toArray()`: returns an associative array with the content of the dict.
 - `toObject()`: returns an StdClass object with the content of the dict.
 - `toJson()`: returns a json string with the content of the dict.
 - `keys()`: returns an array with the keys of the dict.
@@ -589,7 +673,6 @@ In the code above, the attribute _phones_ is defined as a list of strings. So, i
 
 The methods are:
 
-- `toArray()`: returns an array with the content of the list.
 - `toObject()`: returns an StdClass object with the content of the list.
 - `toJson()`: returns a json string with the content of the list.
 - `count()`: returns the number of elements in the list.
