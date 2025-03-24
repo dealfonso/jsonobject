@@ -34,7 +34,7 @@ class TypedList extends TypedDict {
     public function toObject() : array {
         $type = $this->type;
         return [ ...array_map(function ($x) use ($type) { 
-            return $type->convert_object($x); 
+            return $type->convert_value($x); 
         }, $this->values) ];
     }
 

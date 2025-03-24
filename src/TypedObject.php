@@ -151,7 +151,6 @@ namespace ddn\typedobject;
  * - __get($name) - Returns the value of the field with the given name
  * - __set($name, $value) - Sets the value of the field with the given name
  * - __isset($name) - Returns true if the field with the given name is set
- * - toArray() - Returns an associative array with the data of the object
  * - toObject() - Returns an object with the data of the object
  * - toJson() - Returns a json string with the data of the object
  * - fromArray($data) - Creates a new object from the given associative array
@@ -569,24 +568,12 @@ class TypedObject extends BaseTypedObject {
     }
 
     /**
-     * Converts the object into an associative array where the keys are the name of the attributes and the values are the
-     *  values of these attributes.
-     */
-    public function toArray() : array {
-        $array = array();
-        foreach (static::$_attributeDefinition[static::class] as $attribute => $definition) {
-            $array[$attribute] = static::$_attributeDefinition[static::class][$attribute]->convert_array($this->$attribute);
-        }
-        return $array;
-    }
-
-    /**
      * Converts the object into an standard object where the attributes are the attributes of the object.
      */
     public function toObject() :  \stdClass {
         $obj = new \stdClass();
         foreach (static::$_attributeDefinition[static::class] as $attribute => $definition) {
-            $obj->$attribute = static::$_attributeDefinition[static::class][$attribute]->convert_object($this->$attribute);
+            $obj->$attribute = static::$_attributeDefinition[static::class][$attribute]->convert_value($this->$attribute);
         }
         return $obj;
     }

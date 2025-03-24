@@ -4,15 +4,6 @@ namespace ddn\typedobject;
 
 require_once("functions.php");
 
-/*
-TENEMOS QUE CREAR EL TIPO "array" y el tipo "object" para que se puedan usar de forma especial... el tipo array es un "list[mixed]" y el tipo object es un "dict[mixed]"
-pero resulta que los necesitamos tratar de forma especial porque en el autodescubrimiento de las typed properties, PHP se fija en que si hacemos un "get" de algo que
-es de un tipo, debe devolver un objeto de ese tipo. Asi que si lo tratamos a nivel interno como un "list[mixed]" y devolvemos un objeto de tipo TypedList, PHP se queja
-porque espera un objeto de tipo "array" y no de tipo TypedList.
-La solucion es tener el tipo "array" como especial y así devolver un array... aunque ya no se pueda garantizar que los valores del array no sean objetos más complejos
-que no se puedan serializar.
-*/
-
 class TypeDefinition {
     public string $type;
     public bool $nullable;
@@ -286,7 +277,7 @@ class TypeDefinition {
                 break;
             case 'array':
                 if (is_a($value, 'ddn\typedobject\TypedList')) {
-                    $value = $value->toArray();
+                    $value = $value->toObject();
                 } else {
                     if (!STRICT_TYPE_CHECKING && EXTENDED_TYPE_CONVERSION) {
                         try {
@@ -378,33 +369,12 @@ class TypeDefinition {
     }
 
     /**
-     * Converts the value to a result that the user expects to be in an array, so if the value is an object, 
-     *  it will be converted to an array also
-     * @param $value mixed The value to be converted
-     * @return mixed The converted value
-     */
-    public function convert_array($value) {
-        return $this->convert_value($value, "toArray");
-    }
-
-    /**
-     * Converts the value to a result that the user expects to be in an object, so if the value is an array, 
-     *  it will be converted to an object also
-     * @param $value mixed The value to be converted
-     * @return mixed The converted value
-     */
-    public function convert_object($value) {
-        return $this->convert_value($value, "toObject");
-    }
-
-    /**
      * This function converts a value that is in an arbitrary format to the format that is expected by the type to be
-     *   returned to the user in toArray or toObject functions.
+     *   returned to the user.
      * @param $value mixed The value to be converted
-     * @param $funcName string The name of the function to be used to generate the sub-objects (toArray or toObject)
      * @return mixed The converted value
      */
-    public function convert_value($value, $funcName = "toArray") {
+    public function convert_value($value) {
         if ($value === null) {
             return null;
         }
@@ -433,11 +403,11 @@ class TypeDefinition {
                 return floatval($value);
             case 'dict':
             case 'list':
-                return $value->$funcName();
+                return $value->toObject();
             case 'array':
                 return $value;
             default:
-                return $value->$funcName();
+                return $value->toObject();
         }
     }
 }

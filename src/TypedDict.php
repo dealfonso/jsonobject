@@ -124,19 +124,6 @@ class TypedDict extends BaseTypedObject implements \ArrayAccess, \IteratorAggreg
     }
 
     /**
-     * Converts the dictionary to an associative array where the keys are the name of
-     *   the properties and the values are the values of the properties
-     * @return array The dictionary as an associative array
-     */
-    public function toArray() : array {
-        $array = array();
-        foreach ($this->values as $key => $value) {
-            $array[$key] = $this->type->convert_array($value);
-        }
-        return $array;
-    }
-
-    /**
      * Converts the dictionary to an object where the keys are the name of the properties
      *  and the values are the values of the properties
      * @return \stdClass The dictionary as an object
@@ -144,7 +131,7 @@ class TypedDict extends BaseTypedObject implements \ArrayAccess, \IteratorAggreg
     public function toObject() {
         $array = array();
         foreach ($this->values as $key => $value) {
-            $array[$key] = $this->type->convert_object($value);
+            $array[$key] = $this->type->convert_value($value);
         }
         return (object)$array;
     }

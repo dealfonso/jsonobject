@@ -29,7 +29,4 @@ abstract class BaseTypedObject {
 
     /** Converts the object to an object */
     abstract public function toObject();
-
-    /** Converts the object to an associative array */
-    abstract public function toArray();
 }
