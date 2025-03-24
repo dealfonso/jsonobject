@@ -405,7 +405,14 @@ class TypeDefinition {
             case 'list':
                 return $value->toObject();
             case 'array':
-                return $value;
+                return array_map(function ($v) {
+                    // If is subclass of BaseTypedObject, then we'll convert it to an object
+                    if (is_a($v, 'ddn\typedobject\BaseTypedObject')) {
+                        return $v->toObject();
+                    } else {
+                        return $v;
+                    }
+                }, $value);
             default:
                 return $value->toObject();
         }
