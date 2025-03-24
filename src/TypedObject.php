@@ -225,27 +225,26 @@ class TypedObject extends BaseTypedObject {
     protected static function _introspect_attributes() {
         // We are building the definition of attributes for the preceding classes, so that we know the definition for
         //  the attributes of the this class coming from the preceding classes
-        $definitionOfAttributesForPrecedingClasses = [];
+        $definition_of_attributes_for_preceding_classes = [];
         $parentClass = get_called_class();
         while ($parentClass !== false) {
             if (!empty(static::$_attributeDefinition[$parentClass])) {
-                $definitionOfAttributesForPrecedingClasses = array_merge(static::$_attributeDefinition[$parentClass], $definitionOfAttributesForPrecedingClasses);
+                $definition_of_attributes_for_preceding_classes = array_merge(static::$_attributeDefinition[$parentClass], $definition_of_attributes_for_preceding_classes);
             }
             $parentClass = get_parent_class($parentClass);
         }
 
         // Now we are building the attribute definition for this specific class, starting with the definition of the preceding classes
-        $definitionOfAttributes = [ ...$definitionOfAttributesForPrecedingClasses ];
-
+        $definition_of_attributes = [ ...$definition_of_attributes_for_preceding_classes ];
 
         // Now we are building the attribute definition for this specific class
         foreach (static::ATTRIBUTES as $name => $type) {
             // Let's check a special case in which the attributes do not define the type of the attribute. e.g.
             //  const ATTRIBUTES = ['a' => 'int', 'b'];     ('b' does not define the type of the attribute)
-            //  in that case, we'll assume that the type is 'dynamic' (i.e. any type is allowed)
+            //  in that case, we'll assume that the type is 'mixed' (i.e. any type is allowed)
             if (is_int($name)) {
                 $name = $type;
-                $type = 'dynamic';
+                $type = 'mixed';
             }
 
             $has_default = false;
@@ -284,17 +283,17 @@ class TypedObject extends BaseTypedObject {
             //  attribute. In any other case, we'll throw an exception
             //
             // (*) if the definition is the same, we'll not complain about it
-            if (isset($definitionOfAttributesForPrecedingClasses[$name])) {
-                if (!$definitionOfAttributesForPrecedingClasses[$name]->equals($type_definition)) {
+            if (isset($definition_of_attributes_for_preceding_classes[$name])) {
+                if (!$definition_of_attributes_for_preceding_classes[$name]->equals($type_definition)) {
                     throw new \Exception("Attribute $name shadows the definition of previous classes in class ".get_called_class());
                 }
             }
 
             // Store the attribute definition
-            $definitionOfAttributes[$name] = $type_definition;
+            $definition_of_attributes[$name] = $type_definition;
         }        
 
-        static::$_attributeDefinition[static::class] = $definitionOfAttributes;
+        static::$_attributeDefinition[static::class] = $definition_of_attributes;
     }
 
     /** 
@@ -331,28 +330,33 @@ class TypedObject extends BaseTypedObject {
         
         if ($firstTime) {
             static::_introspect_attributes();
-            // static::$_attributeDefinition[static::class] = $definitionOfAttributes;
         }
 
         // Now we are checking if the attributes are initialized by using properties or if there is a default
         //  value for the attribute; in both cases, we'll set the value for the attribute
         foreach (static::$_attributeDefinition[static::class] as $name => $definition) {
             try {
-                if (isset($args[$name])) {
-                    $this->$name = $definition->parse_value($args[$name]);
-                } else {
-                    // If the property existed, we need to unset it but keep the value, just in case that the definition of the
-                    //  attribute changes it (it has more precedence). Moreover, the value will need to be converted to the proper
-                    //  type in a latter stage
-                    $had_property = false;
-                    $property_value = null;
-                    if (property_exists($this, $name)) {
+                // If the property existed, we need to unset it but keep the value, just in case that the definition of the
+                //  attribute changes it (it has more precedence). Moreover, the value will need to be converted to the proper
+                //  type in a latter stage
+                $had_property = false;
+                $property_value = null;
+                if (property_exists($this, $name)) {
+                    try {
                         if (isset($this->$name) || ($this->$name === null && $definition->nullable)) {
                             $had_property = true;
                             $property_value = $this->$name;
                         }
-                        unset($this->$name);
-                    }                
+                    } catch (\Error $e) {
+                        // If we could not get the value of the property, it may be because it is a typed property and it is not initialized
+                        //  yet. In that case, we'll unset the property and we'll set it later
+                    }
+                    unset($this->$name);
+                }                
+
+                if (isset($args[$name])) {
+                    $this->$name = $definition->parse_value($args[$name]);
+                } else {
                     // If the attribute has a default value in the definition, we'll set it (e.g. using a function evaluation or a static value)
                     try {
                         $this->$name = self::_get_default_value($this, $definition, $name);
@@ -374,22 +378,6 @@ class TypedObject extends BaseTypedObject {
                                     throw new \TypeError("not initialized and it has not a default value");
                                 }
                             }
-
-                            /*
-                            if (!$definition->nullable) {
-                                if (AUTOFILL_NOT_NULLABLES_WITH_DEFAULT_VALUES) {
-                                    $this->$name = $definition->default_value();
-                                } else {
-                                    if (USE_UNINITIALIZED_STATE) {
-                                        // If we are using the uninitialized state, we are not going to set the value of the attribute
-                                        //  and we are not going to throw an exception... we'll leave the attribute uninitialize as
-                                        //  PHP 7.4 does (https://php.watch/versions/7.4/typed-properties)
-                                    } else {
-                                        throw new \TypeError("not nullable and it has not a default value");
-                                    }
-                                }
-                            }
-                            */
                         }
                     }
                 }
@@ -490,17 +478,6 @@ class TypedObject extends BaseTypedObject {
                     // If we are using the uninitialized state, this is an error
                     throw new \Error(sprintf("Attribute %s::$name must not be accessed before initialization", get_called_class()));
                 } 
-                // if (!static::$_attributeDefinition[static::class][$name]->nullable) {
-                //     // This should not happen, but if it does, we'll throw an exception
-                //     if (AUTOFILL_NOT_NULLABLES_WITH_DEFAULT_VALUES) {
-                //         $this->_attributeValue[$name] = static::$_attributeDefinition[static::class][$name]->default_value();
-                //     } else {
-                //         throw new \TypeError(sprintf("Internal Error: Attribute %s::$name is not nullable in class ", get_called_class()));
-                //     }
-                // } else {
-                //     // If not considering the uninitialized state, the default is null as of PHP 7.4
-                //     return null;
-                // }
             }
         }
         // Return the value for the attribute

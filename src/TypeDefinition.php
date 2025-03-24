@@ -4,6 +4,15 @@ namespace ddn\typedobject;
 
 require_once("functions.php");
 
+/*
+TENEMOS QUE CREAR EL TIPO "array" y el tipo "object" para que se puedan usar de forma especial... el tipo array es un "list[mixed]" y el tipo object es un "dict[mixed]"
+pero resulta que los necesitamos tratar de forma especial porque en el autodescubrimiento de las typed properties, PHP se fija en que si hacemos un "get" de algo que
+es de un tipo, debe devolver un objeto de ese tipo. Asi que si lo tratamos a nivel interno como un "list[mixed]" y devolvemos un objeto de tipo TypedList, PHP se queja
+porque espera un objeto de tipo "array" y no de tipo TypedList.
+La solucion es tener el tipo "array" como especial y así devolver un array... aunque ya no se pueda garantizar que los valores del array no sean objetos más complejos
+que no se puedan serializar.
+*/
+
 class TypeDefinition {
     public string $type;
     public bool $nullable;
@@ -16,7 +25,7 @@ class TypeDefinition {
      * @param $args array The arguments to create the object
      * (*) the arguments are:
      *   - type string The type of the value
-     *   - name string The name of the value
+     *   - nullable bool Whether the value can be null
      *   - subtype string | null The type of the elements if type is list or dict
      *   - default mixed The default value of the value
      */
@@ -38,6 +47,34 @@ class TypeDefinition {
         }
     }
 
+    public static function fromType(string $type, bool $nullable = false, ?TypeDefinition $subtype = null) : TypeDefinition {
+        switch ($type) {
+            case 'mixed':
+                // This is a special case because (per definition) the mixed type is nullable
+                $nullable = true;
+                break;
+            case 'string':
+            case 'bool':
+            case 'int':
+            case 'float':
+            case 'dict':
+            case 'list':
+            case 'array':
+                break;
+            default:
+                if (!class_exists($type)) {
+                    throw new \TypeError(sprintf("undefined class \"%s\"", $type));
+                }
+                break;
+        }
+
+        return new TypeDefinition([
+            'type' => $type,
+            'nullable' => $nullable,
+            'subtype' => $subtype,
+        ]);
+    }
+
     /**
      * Creates a new TypeDefinition object from a string that defines the type (e.g. 'int', 'list[int]', 'dict[?string]')
      * @param $type string The type to be converted
@@ -52,23 +89,28 @@ class TypeDefinition {
             $type = substr($type, 1);
         }
 
-        if ($type == 'dynamic') {
+        if ($type == 'mixed') {
             if ($nullable) {
-                throw new \TypeError("dynamic type cannot be nullable");
+                throw new \TypeError("mixed type cannot be nullable");
             }
         }
 
         $subtype = null;
 
-        // If type is a dict, then it is a dict of objects
-        if (substr($type, 0, 5) == 'dict[' && $type[strlen($type)-1] == ']') {
-            $subtype = substr($type, 5, strlen($type)-6);
-            $type = 'dict';
-        }
-        // If type is a list, then it is a list of objects
-        if (substr($type, 0, 5) == 'list[' && $type[strlen($type)-1] == ']') {
-            $subtype = substr($type, 5, strlen($type)-6);
-            $type = 'list';
+        // If type is a dict or a list without subtype, then it is a dict or a list of mixed
+        if ($type == 'list' || $type == 'dict') {
+            $subtype = 'mixed';
+        } else {
+            // If type is a dict, then it is a dict of objects
+            if (substr($type, 0, 5) == 'dict[' && $type[strlen($type)-1] == ']') {
+                $subtype = substr($type, 5, strlen($type)-6);
+                $type = 'dict';
+            }
+            // If type is a list, then it is a list of objects
+            if (substr($type, 0, 5) == 'list[' && $type[strlen($type)-1] == ']') {
+                $subtype = substr($type, 5, strlen($type)-6);
+                $type = 'list';
+            }
         }
 
         if ($subtype !== null) {
@@ -76,29 +118,12 @@ class TypeDefinition {
         }
 
         switch ($type) {
-            case 'dynamic':
-                // This is a special case because (per definition) the dynamic type is nullable
-                $nullable = true;
-                break;
-            case 'string':
-            case 'bool':
-            case 'int':
-            case 'float':
-            case 'dict':
-            case 'list':
-                break;
-            default:
-                if (!class_exists($type)) {
-                    throw new \TypeError(sprintf("undefined class \"%s\"", $type));
-                }
+            case 'array':
+                throw new \Error("array type is only valid for specific library purposes");
                 break;
         }
 
-        return new TypeDefinition([
-            'nullable' => $nullable,
-            'subtype' => $subtype,
-            'type' => $type,
-        ]);
+        return TypeDefinition::fromType($type, $nullable, $subtype);
     }
 
     /**
@@ -149,7 +174,7 @@ class TypeDefinition {
             return null;
         }
         switch ($this->type) {
-            case 'dynamic':
+            case 'mixed':
                 return null;
             case 'string':
                 return '';
@@ -163,6 +188,8 @@ class TypeDefinition {
                 return TypedDict::fromArray($subtype, array());
             case 'list':
                 return TypedList::fromArray($subtype, array());
+            case 'array':
+                return array();
             default:
                 return $this->type::fromArray(array());
         }
@@ -183,11 +210,11 @@ class TypeDefinition {
         }
         // This is to enable strict type checking 
         switch ($this->type) {
-            case 'dynamic':
+            case 'mixed':
                 if (is_array($value) || ($value instanceof \Traversable)) {
-                    $value = TypedList::fromArray(TypeDefinition::fromString("dynamic"), $value);
+                    $value = TypedList::fromArray(TypeDefinition::fromString("mixed"), $value);
                 } else if (is_object($value) || ($value instanceof \stdClass)) {
-                    $value = TypedDict::fromObject(TypeDefinition::fromString("dynamic"), $value);
+                    $value = TypedDict::fromObject(TypeDefinition::fromString("mixed"), $value);
                 }
                 break;
             case 'int':
@@ -257,6 +284,22 @@ class TypeDefinition {
                     throw new \TypeError(sprintf("expected a bool, but received \"%s\" (%s)", $value, gettype($value)));
                 }
                 break;
+            case 'array':
+                if (is_a($value, 'ddn\typedobject\TypedList')) {
+                    $value = $value->toArray();
+                } else {
+                    if (!STRICT_TYPE_CHECKING && EXTENDED_TYPE_CONVERSION) {
+                        try {
+                            $value = [ $this->subtype->parse_value($value) ];
+                        } catch (\TypeError $e) {
+                            // We'll throw the exception below
+                        }
+                    }
+                }
+                if (!is_array($value)) {
+                    throw new \TypeError(sprintf("expected an array, but received \"%s\" (%s)", $value, gettype($value)));
+                }
+                break;
             case 'list':
                 if (!is_a($value, 'ddn\typedobject\TypedList')) {
                     // If the value is not of the same type, we'll try to convert it
@@ -284,7 +327,7 @@ class TypeDefinition {
                     if (is_array($value) || ($value instanceof \Traversable)) {
                         $value = TypedDict::fromArray($this->subtype, $value);
                     } else if (is_object($value) || ($value instanceof \stdClass)) {
-                        $value = TypedDict::fromObject($value, true);
+                        $value = TypedDict::fromObject($this->subtype, $value);
                     } else {
                         $throw = true;
                         if (!STRICT_TYPE_CHECKING && EXTENDED_TYPE_CONVERSION) {
@@ -325,7 +368,7 @@ class TypeDefinition {
      */
     public function __toString() : string {
         $result = $this->type;
-        if ($this->nullable && $this->type != 'dynamic') {
+        if ($this->nullable && $this->type != 'mixed') {
             $result = '?' . $result;
         }
         if ($this->subtype !== null) {
@@ -378,7 +421,7 @@ class TypeDefinition {
             $type = 'list';
         }
         switch ($type) {
-            case 'dynamic':
+            case 'mixed':
                 return $value;
             case 'string':
                 return "" . $value;
@@ -391,6 +434,8 @@ class TypeDefinition {
             case 'dict':
             case 'list':
                 return $value->$funcName();
+            case 'array':
+                return $value;
             default:
                 return $value->$funcName();
         }
